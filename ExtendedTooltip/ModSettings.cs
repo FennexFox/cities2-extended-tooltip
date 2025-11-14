@@ -197,7 +197,7 @@ namespace ExtendedTooltip
 		[SettingsUISection(TAB_TOOLTIPS, GRP_VEHICLES)]
 		[SettingsUIAdvanced]
 		[SettingsUIHideByCondition(typeof(Setting), nameof(ShowSpeed), true)]
-		public bool ShowActualSpeed { get; set; } = true;
+		public bool ShowActualSpeed { get; set; } = false;
 		
 		[SettingsUISection(TAB_TOOLTIPS, GRP_VEHICLES)]
 		[SettingsUIHideByCondition(typeof(Setting), nameof(ShowSpeed), true)]
