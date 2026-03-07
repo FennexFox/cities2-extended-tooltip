@@ -68,10 +68,10 @@ namespace ExtendedTooltip.TooltipBuilder
 				};
 				tooltipGroup.children.Add(averageWaitingTimeTooltip);
 
-				Mod.Log.Info(
-					$"Public transport tooltip debug entity={selectedEntity.Index}:{selectedEntity.Version} " +
-					$"displayedAvgWait={averageWaitingTime}{unit} rawAvgWaitSeconds={rawAverageWaitingTime} " +
-					$"waitingPassengers={waitingPassengers} sources=[{debugPassengerInfo}]");
+				// Mod.Log.Info(
+				// 	$"Public transport tooltip debug entity={selectedEntity.Index}:{selectedEntity.Version} " +
+				// 	$"displayedAvgWait={averageWaitingTime}{unit} rawAvgWaitSeconds={rawAverageWaitingTime} " +
+				// 	$"waitingPassengers={waitingPassengers} sources=[{debugPassengerInfo}]");
 			}
 		}
 
