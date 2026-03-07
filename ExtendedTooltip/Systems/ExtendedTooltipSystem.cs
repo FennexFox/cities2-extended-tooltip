@@ -53,6 +53,7 @@ namespace ExtendedTooltip.Systems
 		private SpawnablesTooltipBuilder m_SpawnablesTooltipBuilder;
 		private LotSizeTooltipBuilder m_LotSizeTooltipBuilder;
 		private SpeedTooltipBuilder m_SpeedTooltipBuilder;
+		private VehiclePropertiesTooltipBuilder m_VehiclePropertiesTooltipBuilder;
 		private RoadTooltipBuilder m_RoadTooltipBuilder;
 		private EfficiencyTooltipBuilder m_EfficiencyTooltipBuilder;
 		private ParkTooltipBuilder m_ParkTooltipBuilder;
@@ -89,6 +90,7 @@ namespace ExtendedTooltip.Systems
 			m_SpawnablesTooltipBuilder = new(EntityManager, m_CustomTranslationSystem, m_PrefabSystem);
 			m_LotSizeTooltipBuilder = new(EntityManager, m_CustomTranslationSystem);
 			m_SpeedTooltipBuilder = new(EntityManager, m_CustomTranslationSystem);
+			m_VehiclePropertiesTooltipBuilder = new(EntityManager, m_CustomTranslationSystem);
 			m_EfficiencyTooltipBuilder = new(EntityManager, m_CustomTranslationSystem);
 			m_ParkTooltipBuilder = new(EntityManager, m_CustomTranslationSystem);
 			m_ParkingFacilityTooltipBuilder = new(EntityManager, m_CustomTranslationSystem);
@@ -226,6 +228,12 @@ namespace ExtendedTooltip.Systems
 			if (Mod.Settings.ShowSpeed && EntityManager.HasComponent<Moving>(selectedEntity)) // has returns false for cims, even though it has component?!
 			{
 				m_SpeedTooltipBuilder.Build(selectedEntity, m_PrimaryETGroup);
+			}
+			
+			// VEHICLE PROPERTIES TOOLTIP
+			if (EntityManager.HasComponent<Car>(selectedEntity))
+			{
+				m_VehiclePropertiesTooltipBuilder.Build(selectedEntity, m_PrimaryETGroup);
 			}
 			
 			// CITIZEN TOOLTIP
