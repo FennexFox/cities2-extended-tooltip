@@ -7,6 +7,7 @@ using Game.Routes;
 using Game.UI.Tooltip;
 
 using System.Collections.Generic;
+using System.Text;
 
 using Unity.Entities;
 using Unity.Mathematics;
@@ -30,9 +31,7 @@ namespace ExtendedTooltip.TooltipBuilder
 				return;
 			}
 
-			var waitingPassengers = 0;
-			var averageWaitingTime = 0;
-			GetPassengerInfo(selectedEntity, ref averageWaitingTime, ref waitingPassengers);
+			GetPassengerInfo(selectedEntity, out var averageWaitingTime, out var waitingPassengers, out var debugPassengerInfo);
 
 			if (model.ShowPublicTransportWaitingPassengers)
 			{
@@ -46,6 +45,7 @@ namespace ExtendedTooltip.TooltipBuilder
 
 			if (model.ShowPublicTransportWaitingTime && waitingPassengers != 0)
 			{
+				var rawAverageWaitingTime = averageWaitingTime;
 				var unit = "s";
 				var tooltipColor = TooltipColor.Success;
 				if (averageWaitingTime < 0)
@@ -67,43 +67,89 @@ namespace ExtendedTooltip.TooltipBuilder
 					color = tooltipColor,
 				};
 				tooltipGroup.children.Add(averageWaitingTimeTooltip);
+
+				// Mod.Log.Info(
+				// 	$"Public transport tooltip debug entity={selectedEntity.Index}:{selectedEntity.Version} " +
+				// 	$"displayedAvgWait={averageWaitingTime}{unit} rawAvgWaitSeconds={rawAverageWaitingTime} " +
+				// 	$"waitingPassengers={waitingPassengers} sources=[{debugPassengerInfo}]");
 			}
 		}
 
-		private void GetPassengerInfo(Entity selectedEntity, ref int averageWaitingTime, ref int waitingPassengers)
+		private void GetPassengerInfo(Entity selectedEntity, out int averageWaitingTime, out int waitingPassengers, out string debugPassengerInfo)
 		{
-			// Check connected routes
-			if (m_EntityManager.TryGetBuffer(selectedEntity, true, out DynamicBuffer<ConnectedRoute> dynamicBuffer))
+			var traversedEntities = new HashSet<Entity>();
+			var passengerSources = new HashSet<Entity>();
+			// Collect all unique WaitingPassengers sources first so the same stop is not counted
+			// multiple times through the selected entity, connected routes, and subobjects.
+			CollectPassengerSources(selectedEntity, traversedEntities, passengerSources);
+
+			// Compute the displayed wait time once from the deduplicated sources using a
+			// passenger-weighted average, then keep the existing 5-second rounding.
+			long totalPassengers = 0;
+			long weightedWaitingTime = 0;
+			var debugInfoBuilder = new StringBuilder();
+			foreach (var sourceEntity in passengerSources)
 			{
-				var num = 0;
-				for (var i = 0; i < dynamicBuffer.Length; i++)
+				if (m_EntityManager.TryGetComponent(sourceEntity, out WaitingPassengers waitingPassengersData) == false)
 				{
-					if (m_EntityManager.TryGetComponent(dynamicBuffer[i].m_Waypoint, out WaitingPassengers waitingPassengersData))
-					{
-						waitingPassengers += waitingPassengersData.m_Count;
-						num += waitingPassengersData.m_AverageWaitingTime;
-					}
+					continue;
 				}
 
-				num /= math.max(1, dynamicBuffer.Length);
-				num -= num % 5;
-				averageWaitingTime += (ushort)num;
+				var passengerCount = math.max(0, waitingPassengersData.m_Count);
+				totalPassengers += passengerCount;
+				weightedWaitingTime += (long)passengerCount * waitingPassengersData.m_AverageWaitingTime;
+				if (debugInfoBuilder.Length > 0)
+				{
+					debugInfoBuilder.Append("; ");
+				}
+
+				debugInfoBuilder.Append($"entity={sourceEntity.Index}:{sourceEntity.Version}");
+				debugInfoBuilder.Append($", count={waitingPassengersData.m_Count}");
+				debugInfoBuilder.Append($", avgWait={waitingPassengersData.m_AverageWaitingTime}");
 			}
 
-			// Check building itself
-			if (m_EntityManager.TryGetComponent(selectedEntity, out WaitingPassengers waitingPassengersData2))
+			waitingPassengers = totalPassengers > int.MaxValue ? int.MaxValue : (int)totalPassengers;
+			averageWaitingTime = 0;
+			if (totalPassengers > 0)
 			{
-				waitingPassengers += waitingPassengersData2.m_Count;
-				averageWaitingTime += waitingPassengersData2.m_AverageWaitingTime;
+				averageWaitingTime = (int)(weightedWaitingTime / totalPassengers);
+				averageWaitingTime -= averageWaitingTime % 5;
 			}
 
-			// Also count sub buildings (e.g extension buildings)
-			if (m_EntityManager.TryGetBuffer(selectedEntity, true, out DynamicBuffer<SubObject> subObjects))
+			debugPassengerInfo = debugInfoBuilder.ToString();
+		}
+
+		private void CollectPassengerSources(Entity entity, HashSet<Entity> traversedEntities, HashSet<Entity> passengerSources)
+		{
+			// Avoid revisiting entities while walking composite buildings/subobjects.
+			if (traversedEntities.Add(entity) == false)
 			{
-				List<int> averageWaitingTimes = new();
+				return;
+			}
+
+			if (m_EntityManager.HasComponent<WaitingPassengers>(entity))
+			{
+				passengerSources.Add(entity);
+			}
+
+			// Include route waypoints as waiting-passenger sources; HashSet deduplicates overlap.
+			if (m_EntityManager.TryGetBuffer(entity, true, out DynamicBuffer<ConnectedRoute> connectedRoutes))
+			{
+				for (var i = 0; i < connectedRoutes.Length; i++)
+				{
+					var waypoint = connectedRoutes[i].m_Waypoint;
+					if (m_EntityManager.HasComponent<WaitingPassengers>(waypoint))
+					{
+						passengerSources.Add(waypoint);
+					}
+				}
+			}
+
+			if (m_EntityManager.TryGetBuffer(entity, true, out DynamicBuffer<SubObject> subObjects))
+			{
 				for (var i = 0; i < subObjects.Length; i++)
 				{
-					GetPassengerInfo(subObjects[i].m_SubObject, ref averageWaitingTime, ref waitingPassengers);
+					CollectPassengerSources(subObjects[i].m_SubObject, traversedEntities, passengerSources);
 				}
 			}
 		}
